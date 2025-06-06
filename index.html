@@ -1,0 +1,610 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portik - Community Drive Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;600&display=swap');
+
+        body {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            min-height: 100vh;
+            font-family: 'Roboto Mono', monospace;
+            color: #e2e8f0;
+            padding: 2rem;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: rgba(15, 23, 42, 0.95);
+            border-radius: 1rem;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(to right, #3b82f6, #ec4899);
+            padding: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+        }
+        .header img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+        }
+        .nav a {
+            color: #a5b4fc;
+            margin-left: 1.5rem;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+        .nav a:hover {
+            color: #ffffff;
+            text-shadow: 0 0 5px rgba(59, 130, 246, 0.8);
+        }
+        .table-container {
+            padding: 2rem;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 0.75rem;
+        }
+        th, td {
+            padding: 1rem;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        th {
+            background: linear-gradient(to right, #1e40af, #db2777);
+            color: #ffffff;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        tr:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+            background: rgba(55, 65, 81, 0.9);
+        }
+        a {
+            color: #60a5fa;
+            text-decoration: none;
+            position: relative;
+            transition: color 0.3s ease;
+        }
+        a:hover {
+            color: #ffffff;
+            text-shadow: 0 0 5px #60a5fa;
+        }
+        a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -2px;
+            left: 0;
+            background: #60a5fa;
+            transition: width 0.3s ease;
+        }
+        a:hover::after {
+            width: 100%;
+        }
+        .tag {
+            background: #1e40af;
+            color: #ffffff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            margin-right: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .tag-folder {
+            background: #db2777;
+        }
+        .type-file::before {
+            content: '📄';
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+        .type-folder::before {
+            content: '📁';
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        .register-btn {
+            background: linear-gradient(to right, #3b82f6, #ec4899);
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .register-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.7);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        .modal-content h2 {
+            font-family: 'Orbitron', sans-serif;
+            color: #ffffff;
+            margin-bottom: 1rem;
+        }
+        .modal-content p {
+            color: #d1d5db;
+            margin-bottom: 1.5rem;
+        }
+        .modal-content button {
+            background: #3b82f6;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        .modal-content button:hover {
+            background: #ec4899;
+        }
+        @media (max-width: 768px) {
+            .container {
+                margin: 0 1rem;
+            }
+            th, td {
+                padding: 0.75rem;
+                font-size: 0.9rem;
+            }
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
+            .nav {
+                margin-top: 1rem;
+            }
+            .nav a {
+                margin: 0 0.75rem;
+            }
+            .header img {
+                width: 50px;
+                height: 50px;
+            }
+        }
+        @media (max-width: 640px) {
+            th, td {
+                font-size: 0.8rem;
+                padding: 0.5rem;
+            }
+            .header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="flex items-center">
+                <img src="https://via.placeholder.com/60" alt="Portik Logo">
+                <h1 class="ml-4">Portik Community</h1>
+            </div>
+            <div class="nav">
+                <a href="#home">Home</a>
+                <a href="#forum">Forum</a>
+                <a href="#about">About</a>
+                <a class="register-btn" onclick="openModal()">Join Portik</a>
+            </div>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Link</th>
+                        <th>Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 1</td>
+                        <td><a href="https://drive.google.com/drive/folders/18_MM818SL0OQZyCsAoENPO3WRiYpGBrE?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 2</td>
+                        <td><a href="https://drive.google.com/drive/folders/1eTWtEj_2lRpou3jFVXCvNdlnelRkXZu0?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 3</td>
+                        <td><a href="https://drive.google.com/drive/folders/1_Q1Iw3E8Hl50oaJaaB2exdbDu9SxGUoP?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 4</td>
+                        <td><a href="https://drive.google.com/drive/folders/1bw3n7HG9R1cRNOCFEgLy2hNB5ilfqyPh?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 5</td>
+                        <td><a href="https://drive.google.com/drive/folders/1971kdUO-Gh-OKNPRUxTTk2BxwK6phaqF?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 1</td>
+                        <td><a href="https://drive.google.com/file/d/1LU5pBxquElN73e_FKmfkJ-aEc4rj3HH_/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 2</td>
+                        <td><a href="https://drive.google.com/file/d/1C15-2srXJe3RkFakbawHzqKnhhCOfJlU/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 3</td>
+                        <td><a href="https://drive.google.com/file/d/1wc0mL1LgaXa4to1wPn_tfzwyCAeE15qV/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 4</td>
+                        <td><a href="https://drive.google.com/file/d/15-gf3UUU4LPUVBPhAiw4Bnl8exn2bqwI/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 5</td>
+                        <td><a href="https://drive.google.com/file/d/1ku-g-wjkB0aHKyH8mYUKrxwhKL7kTpys/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 6</td>
+                        <td><a href="https://drive.google.com/file/d/1WCrf5r3zD6oBIo92CQVPt0LVZX-UDFLm/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 7</td>
+                        <td><a href="https://drive.google.com/file/d/15_lV_vQn_hPpDRojoZgOyJo7XTBq5F0S/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 8</td>
+                        <td><a href="https://drive.google.com/file/d/1dnh4w6gpyPc7oY10Sqo9tQsZ1i3bvkLy/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 9</td>
+                        <td><a href="https://drive.google.com/file/d/1c9ETvL0YJBU4akdIBBOQ_xvJtE7RO8e2/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 10</td>
+                        <td><a href="https://drive.google.com/file/d/1IG5ulaHbQVejhJLrzgWDAlMCKzfVOlH1/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 11</td>
+                        <td><a href="https://drive.google.com/file/d/1UzFLD3fl-awXPmDBihFAXujP7tNWz2jQ/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 12</td>
+                        <td><a href="https://drive.google.com/file/d/18fmA9hK21wN5ysG9O4fpv-2gLA5aQccH/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 13</td>
+                        <td><a href="https://drive.google.com/file/d/1-eAZKa4czp-eQ1b8kGOfaMSWs3Qn3tLy/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 14</td>
+                        <td><a href="https://drive.google.com/file/d/1WZw6fZfwk6qvVfwZFjdhK9IPcFuR_Nw1/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 15</td>
+                        <td><a href="https://drive.google.com/file/d/11-R7jarF8MGyb8nmcHzuDO1ZUr_RehoV/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 16</td>
+                        <td><a href="https://drive.google.com/file/d/1dD8AYbcMrA8O7VeUh2LiosHO0znwHlUy/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 17</td>
+                        <td><a href="https://drive.google.com/file/d/1THiNhKxNtTZVGR2B-980L144FVlPmw8K/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 18</td>
+                        <td><a href="https://drive.google.com/file/d/1L1ej51Qea9oFWj7CuE9lQ7Eubt37JKsS/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 19</td>
+                        <td><a href="https://drive.google.com/file/d/1UtEIpjpwxyJ1ixqpN1n2EhCUGCoxGzHR/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 20</td>
+                        <td><a href="https://drive.google.com/file/d/1SGftTyDW-PesPO5H6ov2Gby4RJprpOCE/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 21</td>
+                        <td><a href="https://drive.google.com/file/d/1D0JRPrACDzUfRbnQMaiSo62qmpMPbKLJ/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 6</td>
+                        <td><a href="https://drive.google.com/drive/folders/1Z3HQpUHMExwlzyavRbInrxugBvfpUFYp?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 7</td>
+                        <td><a href="https://drive.google.com/drive/folders/1EgOSV_Ok_9GreVoKzTnZzXOD0HtEj-XN?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 8</td>
+                        <td><a href="https://drive.google.com/drive/folders/19jzDYhcEVehJhE1iLm5a8g3RHJmPMdSV?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag tag-folder">[Folder]</span> Folder 9</td>
+                        <td><a href="https://drive.google.com/drive/folders/1dX-1yXBnGs9Y17m59CJUkchxDc7cqqe0?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-folder">Folder</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 22</td>
+                        <td><a href="https://drive.google.com/file/d/1aGtfPAHx9N-1JGLk7DqVwVh61B2lHhC9/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 23</td>
+                        <td><a href="https://drive.google.com/file/d/1wUSw08HZTy0sbHHXj9iYfGaudXxIy0dt/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 24</td>
+                        <td><a href="https://drive.google.com/file/d/1Wsv0M3Lj1Ffo1zCWos1v_q5fUtEAzXgq/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 25</td>
+                        <td><a href="https://drive.google.com/file/d/1mylRQJSlkkk-IWdykjniBUvJFLhAdNb9/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 26</td>
+                        <td><a href="https://drive.google.com/file/d/1Bv-b1Ujqjc7SWbj4tb31FeH4NHCSUdvZ/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 27</td>
+                        <td><a href="https://drive.google.com/file/d/1E46de2f2kPd9EUZlsFKcxy7SA3VCwE-g/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 28</td>
+                        <td><a href="https://drive.google.com/file/d/1g8jEMLmrYEGC2PQKDauJ8bQAGQqxvWN2/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 29</td>
+                        <td><a href="https://drive.google.com/file/d/1y80LsjxfkBlhYlwSm83s3n2N1SSyI5VN/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 30</td>
+                        <td><a href="https://drive.google.com/file/d/1VH1cAI0NLLjXe_Va00kPt7ahUkfO7cjE/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 31</td>
+                        <td><a href="https://drive.google.com/file/d/1kaXdgpm-WBPxLPibLXwEmcQw-yTyNE2g/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 32</td>
+                        <td><a href="https://drive.google.com/file/d/1FhmhnJn_HEP26NGQ-Vm6On9r6-QoDzpB/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 33</td>
+                        <td><a href="https://drive.google.com/file/d/1nrn1080HU_lo9NwHHS1kG9tJGQFELYRb/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 34</td>
+                        <td><a href="https://drive.google.com/file/d/1NaG-zADgtrNfoRmBazYmMBwiUH4IqceB/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 35</td>
+                        <td><a href="https://drive.google.com/file/d/1ktWu-Kmix0xVitXiFb_vU_M9pkLD3w2m/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 36</td>
+                        <td><a href="https://drive.google.com/file/d/1iZIdeKUkL2JYFZLu2JdBQuN8yrmjzTez/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 37</td>
+                        <td><a href="https://drive.google.com/file/d/1ytGR_5d7KoPPVxHQLW-d7T9jUpxRl4Vm/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 38</td>
+                        <td><a href="https://drive.google.com/file/d/1bmnx5N7dXM6q20FCc5bzAKU4ZXnu2LtQ/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 39</td>
+                        <td><a href="https://drive.google.com/file/d/1uiT9-5E8QHKXTmYTgOCak-h0txAXCMfz/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 40</td>
+                        <td><a href="https://drive.google.com/file/d/1VBQRe6RwqgcRWOgZM99BRc8ZY1fGbzXm/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 41</td>
+                        <td><a href="https://drive.google.com/file/d/1-NJk6XFc_bO_3qluKhv8Vlz_0_NBqZbA/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 42</td>
+                        <td><a href="https://drive.google.com/file/d/1DRSU9l_UTWAZYG4TJ3YSnbokoWgNDEvB/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 43</td>
+                        <td><a href="https://drive.google.com/file/d/1j93_NvA3crn7LrAMmSMyX0qAb8mB72Q3/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 44</td>
+                        <td><a href="https://drive.google.com/file/d/125pLLZaj72YTYN7ZeIDawyJwkCZX2Zag/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 45</td>
+                        <td><a href="https://drive.google.com/file/d/1YOjurIZkHVMr4M1SB18_uFkhCcGMLgHG/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 46</td>
+                        <td><a href="https://drive.google.com/file/d/13C8nDUjQOtM_JVyY9bPaNGRDbAwlk6z3/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 47</td>
+                        <td><a href="https://drive.google.com/file/d/1K-3_RAl8pfEYys6hyH8xaM8X_exJR0bw/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 48</td>
+                        <td><a href="https://drive.google.com/file/d/1HaAjMRQ3voT1Yh3O8_Kh0jrJNb29zj-W/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 49</td>
+                        <td><a href="https://drive.google.com/file/d/1dsme8qxy6TwW2NK2uYv8BQkz3fF87vG5/view?usp=drive_link" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                    <tr>
+                        <td><span class="tag">[File]</span> File 50</td>
+                        <td><a href="https://drive.google.com/file/d/1cdt7PEKudunIAaLmvWx8g40QQUWpmzSd/view?usp=sharing" target="_blank">Open Link</a></td>
+                        <td class="type-file">File</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="footer">
+            Portik Community | Join the Future of File Sharing | © 2025
+        </div>
+        <div class="modal" id="registerModal">
+            <div class="modal-content">
+                <h2>Join the Portik Community</h2>
+                <p>Create an account to share, discuss, and tag your favorite resources!</p>
+                <button onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function openModal() {
+            document.getElementById('registerModal').style.display = 'flex';
+        }
+        function closeModal() {
+            document.getElementById('registerModal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
